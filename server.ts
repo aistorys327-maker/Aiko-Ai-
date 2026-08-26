@@ -81,11 +81,17 @@ async function startServer() {
   app.use(express.json());
 
   const chatHandler = async (req: express.Request, res: express.Response) => {
-    // Check if user passed custom API key in headers or body, else fallback to server GEMINI_API_KEY
+    // Check if user passed custom API key in headers or body, else fallback to server environment variables
     const customKeyHeader = (req.headers["x-custom-api-key"] as string) || req.body?.customApiKey;
+    const envKey =
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.VITE_API_KEY ||
+      process.env.API_KEY;
+
     const apiKey = (customKeyHeader && typeof customKeyHeader === "string" && customKeyHeader.trim() !== "")
       ? customKeyHeader.trim()
-      : process.env.GEMINI_API_KEY;
+      : envKey;
 
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
       return res.status(500).json({

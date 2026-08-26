@@ -2320,6 +2320,39 @@
     import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
     import { GoogleGenAI } from "@google/genai";
 
+    /**
+     * Universal Gemini API Key Getter with Netlify build-time & runtime environment fallbacks:
+     * 1. User manual key from LocalStorage
+     * 2. Vite build environment variables (Netlify)
+     * 3. Process env fallback
+     */
+    export function getGeminiApiKey() {
+      // 1. User manual key from LocalStorage
+      const localKey =
+        localStorage.getItem("gemini_custom_api_key") ||
+        localStorage.getItem("custom_gemini_api_key") ||
+        localStorage.getItem("user_gemini_api_key");
+      if (localKey && localKey.trim() !== "") {
+        return localKey.trim();
+      }
+
+      // 2. Vite build environment variable (Netlify)
+      if (typeof import.meta !== "undefined" && import.meta.env) {
+        if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
+        if (import.meta.env.GEMINI_API_KEY) return import.meta.env.GEMINI_API_KEY;
+        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
+      }
+
+      // 3. Process env fallback
+      if (typeof process !== "undefined" && process.env) {
+        if (process.env.VITE_GEMINI_API_KEY) return process.env.VITE_GEMINI_API_KEY;
+        if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+      }
+
+      return "";
+    }
+    window.getGeminiApiKey = getGeminiApiKey;
+
     const characters = [
       {
         id: "aiko",
@@ -3943,7 +3976,13 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
     }
 
     function updateKeyUIState() {
-      const customKey = (localStorage.getItem("user_gemini_api_key") || "").trim();
+      const userKey = (
+        localStorage.getItem("gemini_custom_api_key") ||
+        localStorage.getItem("custom_gemini_api_key") ||
+        localStorage.getItem("user_gemini_api_key") ||
+        ""
+      ).trim();
+      const detectedKey = getGeminiApiKey();
       const statusBox = document.getElementById("key-status-box");
       const statusLabel = document.getElementById("key-status-label");
       const keyInput = document.getElementById("custom-api-key-input");
@@ -3951,13 +3990,13 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
       const settingsKeyLabel = document.getElementById("settings-key-label");
       const keyBtnLabel = document.getElementById("key-btn-label");
 
-      if (customKey) {
-        if (keyInput) keyInput.value = customKey;
+      if (userKey) {
+        if (keyInput) keyInput.value = userKey;
         if (statusBox) {
           statusBox.className = "key-status-indicator custom";
         }
         if (statusLabel) {
-          const masked = maskKeyDisplay(customKey);
+          const masked = maskKeyDisplay(userKey);
           statusLabel.textContent = `Using Custom Gemini Key (${masked})`;
         }
         if (keyTriggerBtn) {
@@ -3975,7 +4014,9 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
           statusBox.className = "key-status-indicator default";
         }
         if (statusLabel) {
-          statusLabel.textContent = "Using App Default Gemini Key";
+          statusLabel.textContent = detectedKey
+            ? "Using App / Netlify Environment Key"
+            : "Using App Default Gemini Key";
         }
         if (keyTriggerBtn) {
           keyTriggerBtn.classList.remove("key-badge-active");
@@ -4064,6 +4105,8 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
         return;
       }
 
+      localStorage.setItem("gemini_custom_api_key", rawVal);
+      localStorage.setItem("custom_gemini_api_key", rawVal);
       localStorage.setItem("user_gemini_api_key", rawVal);
       updateKeyUIState();
       window.closeKeyModal();
@@ -4071,6 +4114,8 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
     };
 
     window.resetCustomApiKey = function () {
+      localStorage.removeItem("gemini_custom_api_key");
+      localStorage.removeItem("custom_gemini_api_key");
       localStorage.removeItem("user_gemini_api_key");
       updateKeyUIState();
       window.closeKeyModal();
@@ -5553,13 +5598,13 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
     async function callGeminiEngine(contents) {
       let lastClientError = null;
 
-      // Check for user-provided custom Gemini API Key in localStorage
-      const customApiKey = (localStorage.getItem("user_gemini_api_key") || "").trim();
+      // Detect API key from LocalStorage, Netlify/Vite environment variables, or process.env
+      const apiKey = getGeminiApiKey();
 
-      // 1. Direct AI Studio / Gemini Client SDK (using custom key if provided, else default preview config)
+      // 1. Direct AI Studio / Gemini Client SDK (using detected key if available)
       for (const model of CANDIDATE_MODELS) {
         try {
-          const aiOptions = customApiKey ? { apiKey: customApiKey } : {};
+          const aiOptions = apiKey ? { apiKey: apiKey } : {};
           const ai = new GoogleGenAI(aiOptions);
           const response = await ai.models.generateContent({
             model: model,
@@ -5586,8 +5631,8 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
       // 2. Production Netlify Serverless fallback
       try {
         const headers = { "Content-Type": "application/json" };
-        if (customApiKey) {
-          headers["X-Custom-Api-Key"] = customApiKey;
+        if (apiKey) {
+          headers["X-Custom-Api-Key"] = apiKey;
         }
 
         const activeAvatarName = getActiveAvatarName(currentAvatarKey);
@@ -5596,7 +5641,7 @@ CRITICAL PERSONALITY & BEHAVIOR RULES:
           headers: headers,
           body: JSON.stringify({
             contents,
-            customApiKey: customApiKey || undefined,
+            customApiKey: apiKey || undefined,
             systemInstruction: getDynamicSystemInstruction(),
           }),
         });

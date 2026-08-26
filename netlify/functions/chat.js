@@ -135,9 +135,15 @@ exports.handler = async function (event) {
     customApiKey = payload.customApiKey;
   }
 
+  const envKey =
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_API_KEY ||
+    process.env.API_KEY;
+
   const apiKey = (customApiKey && typeof customApiKey === "string" && customApiKey.trim() !== "")
     ? customApiKey.trim()
-    : process.env.GEMINI_API_KEY;
+    : envKey;
 
   if (!apiKey || apiKey.trim() === "" || apiKey === "MY_GEMINI_API_KEY") {
     return {
