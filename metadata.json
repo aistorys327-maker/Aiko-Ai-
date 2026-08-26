@@ -1,0 +1,6 @@
+{
+  "name": "Aiko — 3D Anime AI Girlfriend",
+  "description": "3D VRM Anime AI Companions featuring Aiko and Luna with interactive voice TTS, natural Hinglish conversation, and responsive 3D stage.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
